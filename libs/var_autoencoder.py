@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.layers import Input, Activation, Conv2D, ReLU, BatchNormalization
 from tensorflow.keras.layers import Dense, Flatten, UpSampling2D, Reshape
 from tensorflow.keras.losses import MeanSquaredError
@@ -95,16 +95,17 @@ class VarAutoencoder:
     
 
     def _add_bottleneck(self, x):
-        """Flatten the output of the last conv layer and feed it into a dense layer."""
-        # shape of x is (batch_size, height, width, channels)
         self._shape_before_bottleneck = K.int_shape(x)[1:]
         x = Flatten()(x)
-
-        # we allow ourselves to sample from a full multivariate normal
-        # the reparamatrization is done under the hood
-        x = Dense(tfpl.MultivariateNormalTriL.params_size(self.latent_dim))(x)
-        x = tfpl.MultivariateNormalTriL(self.latent_dim, 
-                                        activity_regularizer=tfpl.KLDivergenceRegularizer(self._prior, weight=1.0))(x)
+        
+        params = Dense(tfpl.MultivariateNormalTriL.params_size(self.latent_dim))(x)
+        x = tfpl.DistributionLambda(
+            lambda t: tfd.MultivariateNormalTriL(
+                loc=t[..., :self.latent_dim],
+                scale_tril=tfp.math.fill_triangular(t[..., self.latent_dim:])
+            ),
+            activity_regularizer=tfpl.KLDivergenceRegularizer(self._prior)
+        )(params)
         return x
 
         
