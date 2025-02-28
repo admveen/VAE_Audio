@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Activation, Conv2D, Conv2DTranspose, ReLU, BatchNormalization, Dense, Flatten, UpSampling2D
+from tensorflow.keras.layers import Input, Activation, Conv2D, Conv2DTranspose, ReLU, BatchNormalization, Dense, Flatten, UpSampling2D, Reshape
 from tensorflow.keras.optimizers import Adam
 import tensorflow.keras.backend as K
 from typing import List

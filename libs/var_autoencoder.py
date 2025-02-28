@@ -1,10 +1,9 @@
 import tensorflow as tf
-from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Activation, Conv2D, ReLU, BatchNormalization
-from tensorflow.keras.layers import Dense, Flatten, UpSampling2D, Reshape
+from tensorflow.keras.layers import Dense, Flatten, UpSampling2D, Reshape, Lambda
 from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.optimizers import Adam
-import tensorflow_probability as tfp
 import tensorflow.keras.backend as K
 from typing import List
 
@@ -12,8 +11,6 @@ from typing import List
 import numpy as np
 import matplotlib.pyplot as plt
 
-tfd = tfp.distributions
-tfpl = tfp.layers
 
 # we will define the encoder and decoder as models using the functional API.
 class VarAutoencoder:
@@ -27,8 +24,11 @@ class VarAutoencoder:
         self.conv_strides = conv_strides # e.g. [1, 1, 1, 1], stride 2 for downsampling
         self.latent_dim = latent_dim
 
-        # starts with a simple unit normal prior
-        self._prior = tfd.Independent(tfd.Normal(loc = tf.zeros(self.latent_dim), scale = 1.))
+        self.reconstruction_loss_weight = 1000
+
+        self.mu = None
+        self.logvar = None
+
 
         self.encoder = None
         self.decoder = None
@@ -48,6 +48,21 @@ class VarAutoencoder:
         # build the decoder
         self._build_decoder()
         self.build_autoencoder()
+
+    def _calculate_reconstruction_loss(self, y_target, y_pred):
+        error = (y_target - y_pred)
+        reconstruction_loss = K.mean(K.square(error), axis = [1,2,3])
+        return reconstruction_loss
+
+    def _KL_loss(self, y_target, y_pred):
+        kl_loss = -0.5*K.sum(1 + self.logvar - K.square(self.mu) - K.exp(self.logvar), axis = 1)
+        return kl_loss
+    
+    def combined_loss(self, y_target, y_pred):
+        reconstruction_loss = self._calculate_reconstruction_loss(y_target, y_pred)
+        kl_loss = self._KL_loss(y_target, y_pred)
+        combined_loss = self.reconstruction_loss_weight * reconstruction_loss + kl_loss
+        return combined_loss
 
     def _build_encoder(self):
         encoder_input = self._add_encoder_input()
@@ -97,15 +112,19 @@ class VarAutoencoder:
     def _add_bottleneck(self, x):
         self._shape_before_bottleneck = K.int_shape(x)[1:]
         x = Flatten()(x)
-        
-        params = Dense(tfpl.MultivariateNormalTriL.params_size(self.latent_dim))(x)
-        x = tfpl.DistributionLambda(
-            lambda t: tfd.MultivariateNormalTriL(
-                loc=t[..., :self.latent_dim],
-                scale_tril=tfp.math.fill_triangular(t[..., self.latent_dim:])
-            ),
-            activity_regularizer=tfpl.KLDivergenceRegularizer(self._prior)
-        )(params)
+        self.mu = Dense(self.latent_dim, name = "z_mean")(x)
+        self.logvar = Dense(self.latent_dim, name = "z_logvar")(x)
+
+        def sampling(args):
+            mu, logvar = args
+            batchdim = K.shape(mu)[0]
+            dim = K.int_shape(mu)[1]
+            epsilon = K.random_normal(shape = K.shape(mu), mean = 0., stddev = 1.)
+            sampled_point = mu + K.exp(logvar / 2)*epsilon
+            return sampled_point
+
+        x = Lambda(sampling, output_shape =(self.latent_dim, ), name = "encoder_output")([self.mu, self.logvar])
+
         return x
 
         
@@ -170,8 +189,7 @@ class VarAutoencoder:
 
     def compile(self, learning_rate=0.0001):
         optimizer = Adam(learning_rate=learning_rate)
-        mse_loss = MeanSquaredError()
-        self.model.compile(optimizer=optimizer, loss=mse_loss)
+        self.model.compile(optimizer=optimizer, loss=self.combined_loss)
 
     def train(self, x_train, batch_size=32, epochs=10):
         self.model.fit(x_train, x_train, batch_size=batch_size, epochs=epochs, shuffle=True)
