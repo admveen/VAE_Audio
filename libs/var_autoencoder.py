@@ -141,7 +141,7 @@ class VarAutoencoder:
         self.decoder = Model(decoder_input, decoder_output, name="decoder")
 
     def _add_decoder_input(self):
-        return Input(shape=self.latent_space_dim, name="decoder_input")
+        return Input(shape=(self.latent_space_dim,), name="decoder_input")
 
     def _add_dense_layer(self, decoder_input):
         num_neurons = np.prod(self._shape_before_bottleneck) # [1, 2, 4] -> 8
