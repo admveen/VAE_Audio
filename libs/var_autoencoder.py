@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Activation, Conv2D, ReLU, BatchNormalization
+from tensorflow.keras.layers import Input, Activation, Conv2D, ReLU, BatchNormalization, Layer
 from tensorflow.keras.layers import Dense, Flatten, UpSampling2D, Reshape, Lambda
 from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.optimizers import Adam
@@ -11,6 +11,37 @@ from typing import List
 import numpy as np
 import matplotlib.pyplot as plt
 
+class ShapeLayer(tf.keras.Layer):
+    def __init__(self):
+        super().__init__()
+    def call(self, x):
+        return tf.shape(x)[1:]
+    
+class Sampling(Layer):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+    
+    def call(self, inputs):
+        mu, logvar = inputs
+        epsilon = tf.random.normal(shape=tf.shape(mu))
+        return mu + tf.exp(logvar * 0.5) * epsilon
+
+class VAEBottleneck(Layer):
+    def __init__(self, latent_dim, **kwargs):
+        super().__init__(**kwargs)
+        self.latent_dim = latent_dim
+        self.shape_layer = ShapeLayer()
+        self.mu_layer = Dense(latent_dim, name="z_mean")
+        self.logvar_layer = Dense(latent_dim, name="z_logvar")
+        self.sampling = Sampling()
+        
+    def call(self, inputs):
+        self.shape_before_bottleneck = self.shape_layer(inputs)
+        x = Flatten()(inputs)
+        self.mu = self.mu_layer(x)
+        self.logvar = self.logvar_layer(x)
+        z = self.sampling([self.mu, self.logvar])
+        return z
 
 # we will define the encoder and decoder as models using the functional API.
 class VarAutoencoder:
@@ -110,18 +141,10 @@ class VarAutoencoder:
     
 
     def _add_bottleneck(self, x):
-        self._shape_before_bottleneck = tf.shape(x)[1:]
-        x = Flatten()(x)
-        self.mu = Dense(self.latent_dim, name="z_mean")(x)
-        self.logvar = Dense(self.latent_dim, name="z_logvar")(x)
-
-        def sampling(args):
-            mu, logvar = args
-            epsilon = tf.random.normal(shape=tf.shape(mu), mean=0., stddev=1.)
-            return mu + tf.exp(logvar / 2) * epsilon
-
-        x = Lambda(sampling, name="encoder_output")([self.mu, self.logvar])
-        return x
+        self.vae_layer = VAEBottleneck(self.latent_dim)
+        z = self.vae_layer(x)
+        self._shape_before_bottleneck = self.vae_layer.shape_before_bottleneck
+        return z
 
         
     def _add_decoder_input(self):
