@@ -231,12 +231,13 @@ class VarAutoencoder:
 
         def sample_point_from_normal_distribution(args):
             mu, log_variance = args
-            epsilon = K.random_normal(shape=K.shape(self.mu), mean=0.,
+            epsilon = K.random_normal(shape=K.shape(mu), mean=0.,
                                       stddev=1.)
             sampled_point = mu + K.exp(log_variance / 2) * epsilon
             return sampled_point
 
         x = Lambda(sample_point_from_normal_distribution,
+                   output_shape=(self.latent_space_dim,),
                    name="encoder_output")([self.mu, self.log_variance])
         return x
 
