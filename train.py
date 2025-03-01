@@ -24,7 +24,7 @@ def train(x_train, lr, batch_size, epochs):
         conv_filters = (32, 64,64,64),
         conv_kernels = (3,3,3,3),
         conv_strides = (1,2,2,1),
-        latent_dim = 2)
+        latent_space_dim = 2)
     vae_mod.summary()
     vae_mod.compile(learning_rate = lr)
     vae_mod.train(x_train, batch_size=batch_size, epochs = epochs)
