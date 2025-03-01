@@ -151,12 +151,14 @@ class VarAutoencoder:
         return Input(shape=(self.latent_dim,), name="decoder_input")
 
     def _add_dense_layer(self, decoder_input):
-        num_neurons = np.prod(self._shape_before_bottleneck) # product of the shape of the output of the last conv layer
+        # Convert shape tensor to total number of neurons using tf.reduce_prod
+        num_neurons = tf.reduce_prod(self._shape_before_bottleneck)
+        # Cast to int32 since Dense layer expects an integer
+        num_neurons = tf.cast(num_neurons, tf.int32)
         dense_layer = Dense(num_neurons, name="dense_layer")(decoder_input)
         return dense_layer
 
     def _add_reshape_layer(self, dense_layer):
-        # reshape layer applid to dense layer output
         reshape_layer = Reshape(self._shape_before_bottleneck)(dense_layer)
         return reshape_layer
 
