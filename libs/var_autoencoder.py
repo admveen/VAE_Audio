@@ -51,11 +51,11 @@ class VarAutoencoder:
 
     def _calculate_reconstruction_loss(self, y_target, y_pred):
         error = (y_target - y_pred)
-        reconstruction_loss = K.mean(K.square(error), axis = [1,2,3])
+        reconstruction_loss = tf.reduce_mean(tf.square(error), axis=[1,2,3])
         return reconstruction_loss
 
     def _KL_loss(self, y_target, y_pred):
-        kl_loss = -0.5*K.sum(1 + self.logvar - K.square(self.mu) - K.exp(self.logvar), axis = 1)
+        kl_loss = -0.5 * tf.reduce_mean(1 + self.logvar - tf.square(self.mu) - tf.exp(self.logvar), axis=1)
         return kl_loss
     
     def combined_loss(self, y_target, y_pred):
@@ -81,7 +81,7 @@ class VarAutoencoder:
     
     def build_autoencoder(self):
         model_input = self._model_input
-        model_output = self._decoder(self._encoder(model_input))
+        model_output = self.decoder(self.encoder(model_input))
         self.model = Model(model_input, model_output, name="autoencoder")
 
     def _add_encoder_input(self):
@@ -110,21 +110,17 @@ class VarAutoencoder:
     
 
     def _add_bottleneck(self, x):
-        self._shape_before_bottleneck = K.int_shape(x)[1:]
+        self._shape_before_bottleneck = tf.shape(x)[1:]
         x = Flatten()(x)
-        self.mu = Dense(self.latent_dim, name = "z_mean")(x)
-        self.logvar = Dense(self.latent_dim, name = "z_logvar")(x)
+        self.mu = Dense(self.latent_dim, name="z_mean")(x)
+        self.logvar = Dense(self.latent_dim, name="z_logvar")(x)
 
         def sampling(args):
             mu, logvar = args
-            batchdim = K.shape(mu)[0]
-            dim = K.int_shape(mu)[1]
-            epsilon = K.random_normal(shape = K.shape(mu), mean = 0., stddev = 1.)
-            sampled_point = mu + K.exp(logvar / 2)*epsilon
-            return sampled_point
+            epsilon = tf.random.normal(shape=tf.shape(mu), mean=0., stddev=1.)
+            return mu + tf.exp(logvar / 2) * epsilon
 
-        x = Lambda(sampling, output_shape =(self.latent_dim, ), name = "encoder_output")([self.mu, self.logvar])
-
+        x = Lambda(sampling, name="encoder_output")([self.mu, self.logvar])
         return x
 
         
@@ -171,14 +167,14 @@ class VarAutoencoder:
         if self.conv_strides[0] > 1:
             x = UpSampling2D(size=self.conv_strides[0])(x)
         x = Conv2D(
-            filters=1,  # we have two filters for mean and logvar
+            filters=1, 
             kernel_size=self.conv_kernels[0],
             activation = 'sigmoid',
             padding="same",
             name=f"decoder_conv_layer_{self._num_conv_layers}"
         )(x)
 
-        # decoder returns a distribution object which will be a picture
+        
         return x
 
     
