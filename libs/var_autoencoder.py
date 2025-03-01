@@ -55,11 +55,18 @@ class VarAutoencoder:
                            metrics=[self._calculate_reconstruction_loss,
                                     self._calculate_kl_loss])
 
-    def train(self, x_train, batch_size, num_epochs):
+    def train(self, x_train, batch_size, epochs):
+        """Train the VAE model.
+        
+        Args:
+            x_train: Training data
+            batch_size: Size of each training batch
+            epochs: Number of epochs to train for
+        """
         self.model.fit(x_train,
                        x_train,
                        batch_size=batch_size,
-                       epochs=num_epochs,
+                       epochs=epochs,
                        shuffle=True)
 
     def save(self, save_folder="."):
