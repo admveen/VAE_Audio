@@ -14,7 +14,7 @@ import tensorflow as tf
 tf.compat.v1.disable_eager_execution()
 
 
-class VAE:
+class VarAutoencoder:
     """
     VAE represents a Deep Convolutional variational autoencoder architecture
     with mirrored encoder and decoder components.
