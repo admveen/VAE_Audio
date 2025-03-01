@@ -11,9 +11,6 @@ import numpy as np
 import tensorflow as tf
 
 
-tf.compat.v1.disable_eager_execution()
-
-
 class VarAutoencoder:
     """
     VAE represents a Deep Convolutional variational autoencoder architecture
